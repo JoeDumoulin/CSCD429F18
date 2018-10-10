@@ -1,0 +1,142 @@
+---
+title: "Naive Bayes from scratch"
+author: "Joe D"
+date: "9/30/2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Naive Bayes Algorithm in R
+
+This is an example implementation of the naive bayes learning algorithm in R.  The code originated from <https://gist.github.com/dansondergaard/7062952>.
+
+The algorithm is designed after the wikipedia entry for naive bayesand uses the data set from that example.
+
+```{r}
+
+# naivebayes.txt
+#
+# sex height weight  footsize
+# male  6    180	12
+# male	5.92 190	11
+# male	5.58	170	12
+# male	5.92	165	10
+# female 5	100	6
+# female 5.5	150	8
+# female 5.42	130	7
+# female 5.75	150	9
+
+library("data.table")
+library("e1071") # for titanic data used below
+library(plyr)
+
+train <- function (dt) {
+  return(dt[,list(meanHeight=mean(height), varHeight=sd(height),
+                  meanWeight=mean(weight), varWeight=sd(weight),
+                  meanFootsize=mean(footsize), varFootsize=sd(footsize)), by=sex])
+}
+
+classify <- function (classifier, sample) {
+  posterior <- function (sample, class_prior, class) {
+    p_height <- dnorm(sample$height, class$meanHeight, class$varHeight)
+    p_weight <- dnorm(sample$weight, class$meanWeight, class$varWeight)
+    p_footsize <- dnorm(sample$footsize, class$meanFootsize, class$varFootsize)
+    return(class_prior * p_height * p_weight * p_footsize)
+  }
+  
+  class_male <- classifier[which(classifier$sex == 'male'),]
+  class_female <- classifier[which(classifier$sex == 'female'),]
+  
+  prior_male <- 0.5
+  prior_female <- 0.5
+  
+  return(list(male=posterior(sample, prior_male, class_male),
+              female=posterior(sample, prior_female, class_female)))
+}
+```
+
+We run the algorithm by loading a dataset and executing 'train' as below.  This learns the classification procedure.  Then we can apply data using 'classify' and evaluate the model produced by 'train'.
+
+```{r}
+training_set <- data.table(read.table('naivebayes.txt', header=TRUE))
+sample = data.table(height=6, weight=130, footsize=8)
+
+classifier <- train(training_set)
+result = classify(classifier, sample)
+
+cat('posterior(male) =', result$male)
+cat('\nposterior(female) =', result$female)
+```
+We can rerun this algorithm using the Titanic dataset as described below.  This example is derived from <https://www.r-bloggers.com/understanding-naive-bayes-classifier-using-r/>
+```{r}
+data(Titanic)
+#Save into a data frame and view it
+Titanic_df=as.data.frame(Titanic)
+Titanic_df
+```
+In this dataset, we have a summary of all the combinations of the above variables from a subset of the full Titanic set.  We need to expand this to use it for training:
+
+```{r}
+#Creating data from table
+repeating_sequence=rep.int(seq_len(nrow(Titanic_df)), Titanic_df$Freq) #This will repeat each combination equal to the frequency of each combination
+#Create the dataset by row repetition created
+Titanic_dataset=data.table(Titanic_df[repeating_sequence,])
+#We no longer need the frequency, drop the feature
+Titanic_dataset$Freq=NULL
+
+head(Titanic_dataset)
+```
+Now we can try to write code to fit this model.
+
+```{r}
+train_titanic <- function(dt) {
+  tblAge <- table(dt$Survived, dt$Age)
+#  print(tblAge)
+  tblSex <- table(dt$Survived, dt$Sex)
+#  print(tblSex)
+  tblClass = table(dt$Survived, dt$Class)
+#  print(tblClass)
+#  names(tblClass) <- tblAge
+#  names(tblSex) <- tblAge
+#  return (dt[, cbind(tblAge, tblSex, tblClass)])
+  return (list(age=tblAge, sex=tblSex, class=tblClass))
+}
+
+```
+
+```{r}
+predict_Titanic <- function (classifier, sample) {
+  posterior <- function (sample, class_prior, class) {
+    p_age <- class$age/rowSums(class$age)
+    p_sex <- class$sex/rowSums(class$sex)
+    p_class <- class$class/rowSums(class$class)
+    print(class_prior)
+    return(class_prior * p_age * p_sex * p_class)
+  }
+  
+#  class_survived <- list(fAge = classifier$age[2,],fSex=classifier$sex[2,], fClass=classifier$class[2,])
+#  class_died <- list(fAge = classifier$age[1,],fSex=classifier$sex[1,], fClass=classifier$class[1,])
+  
+  prior_survived <- 0.5
+  prior_died <- 0.5
+  
+  result <- posterior(sample, rbind(prior_survived, prior_died), classifier)
+  return(result)
+#  return(list(survived=posterior(sample, prior_survived, class_survived),
+#              died=posterior(sample, prior_died, class_died)))
+}
+```
+
+```{r}
+sample_titanic = data.table(Age="Adult", Sex="Male", Class="Crew")
+
+classifier <- train_titanic(Titanic_dataset)
+classifier
+result = predict_Titanic(classifier, sample)
+
+#cat('posterior(survived) =', result$survived)
+#cat('\nposterior(died) =', result$died)
+```

@@ -1,0 +1,164 @@
+---
+title: "itemsets and association rules from M. Spitzer"
+author: "Joe D"
+date: "8/20/2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r, message=FALSE, warning=FALSE}
+library(plotly)
+library(readr)
+library(dplyr)
+library(tidyr)
+library(arules)
+library(arulesViz)
+library(methods)
+
+ordr_pr <- read_csv("../../Data/all/order_products__prior.csv")
+prods <- read_csv("../../Data/all/products.csv")
+```
+
+### Data Preparation
+
+```{r, message=FALSE}
+# get the shopping baskets
+order_baskets <- ordr_pr %>% 
+  inner_join(prods, by="product_id") %>% 
+  group_by(order_id) %>%
+  summarise(basket = as.vector(list(product_name)))
+
+# compute transactions
+transactions <- as(order_baskets$basket, "transactions")
+```
+
+### Analyzing the baskets
+
+Let's first do some groundwork and analyse the basket sizes
+
+```{r}
+hist(size(transactions), breaks = 0:150, xaxt="n", ylim=c(0,250000), 
+     main = "Number of Items per basket", xlab = "#Items")
+axis(1, at=seq(0,160,by=10), cex.axis=0.8)
+mtext(paste("Total:", length(transactions), "baskets,", sum(size(transactions)), "items"))
+```
+
+
+Next, let's determine which items are frequent. We set the support threshold to 
+0.02, that means an item will be considered as frequent iff at least 2 percent 
+of all the baskets contain it. So in our case, an item will be considered as being 
+frequent if it is contained in more than 64,000 baskets.
+
+```{r, fig.height=8}
+item_frequencies <- itemFrequency(transactions, type="a")
+support <- 0.02
+freq_items <- sort(item_frequencies, decreasing = F)
+freq_items <- freq_items[freq_items>support*length(transactions)]
+
+par(mar=c(2,10,2,2)); options(scipen=5)
+barplot(freq_items, horiz=T, las=1, main="Frequent Items", cex.names=.8, xlim=c(0,500000))
+mtext(paste("support:",support), padj = .8)
+abline(v=support*length(transactions), col="red")
+```
+
+
+The ranking shows lots of fruits and vegetables - especially bananas, avocados, 
+strawberries and lemons. But there is also milk and hummus (mmmh..)! We can also 
+see that there are some similar products like avocado and hass avocado or 
+strawberries and organic strawberries that we may want to group together. 
+
+### Frequent Itemsets
+
+Now, lets compute the frequent itemsets. We decrease the support threshold to 
+take into account the small probability of observing a frequent itemset of at 
+least size 2. 
+
+```{r, message=FALSE}
+support <- 0.008
+itemsets <- apriori(transactions, parameter = list(target = "frequent itemsets", supp=support, minlen=2), control = list(verbose = FALSE))
+
+par(mar=c(5,18,2,2)+.1)
+sets_order_supp <- DATAFRAME(sort(itemsets, by="support", decreasing = F))
+barplot(sets_order_supp$support, names.arg=sets_order_supp$items, xlim=c(0,0.02), horiz = T, las = 2, cex.names = .8, main = "Frequent Itemsets")
+mtext(paste("support:",support), padj = .8)
+```
+
+
+First of all, with a support threshold of 0.008 (~25k baskets), we observe frequent pairs only, 
+and secondly: there are lots of bananas! Each of the eight pairs with highest support contains bananas. 
+Nearly all of the items are either fruits or vegetables. There is just one 
+frequent pair that contains milk (of course, with bananas). An interesting 
+combination is bananas and baby spinach - maybe a tasty smoothie?
+
+### Association Rules
+
+Lets mine some association rules: First, we use a low support threshold and a 
+high confidence to generate strong rules even for items that are less frequent
+
+```{r, message=FALSE, warning=FALSE}
+rules1 <- apriori(transactions, parameter = list(supp = 0.00001, conf = 0.6, maxlen=3), control = list(verbose = FALSE)) 
+```
+
+```{r, message=FALSE}
+summary(quality(rules1))
+plot(rules1)
+```
+
+There are some rules with a heavy lift indicating a strong association between the items. Let's 
+further investigate those critical rules
+
+```{r}
+inspect(sort(rules1, by="lift")[1:10])
+inspect(sort(rules1, by="confidence")[1:10])
+```
+
+Seems like those rules mostly affect similar items which were usually bought together. 
+Notice that there are no rules containing bananas.
+
+Next, we increase the support and decrease confidence to get rules of some more frequent items but 
+with less confidence. 
+
+```{r, message=FALSE, warning=FALSE}
+rules2 <- apriori(transactions, parameter = list(supp = 0.001, conf = 0.4, maxlen=3), control = list(verbose = FALSE)) 
+```
+
+```{r, message=FALSE}
+summary(quality(rules2))
+plot(rules2)
+```
+
+```{r, message=FALSE}
+inspect(sort(rules2, by="lift")[1:10])
+inspect(sort(rules2, by="confidence")[1:10])
+```
+
+Now we see some yogurts, fruits and drinks which were often bought together. 
+
+Finally, lets further increase support and decrease confidence
+
+```{r, message=FALSE, warning=FALSE}
+rules3 <- apriori(transactions, parameter = list(supp = 0.005, conf = 0.1, maxlen=3), control = list(verbose = FALSE)) 
+```
+
+```{r, message=FALSE}
+summary(quality(rules3))
+plot(rules3)
+```
+
+```{r, message=FALSE}
+inspect(sort(rules3, by="lift")[1:10])
+inspect(sort(rules3, by="confidence")[1:10])
+```
+
+And again, lots of (organic) fruits and vegetables. 
+
+**Thank you and stay tuned for further improvements ;-)**
