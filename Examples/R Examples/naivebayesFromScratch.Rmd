@@ -93,16 +93,7 @@ Now we can try to write code to fit this model.
 
 ```{r}
 train_titanic <- function(dt) {
-  tblAge <- table(dt$Survived, dt$Age)
-#  print(tblAge)
-  tblSex <- table(dt$Survived, dt$Sex)
-#  print(tblSex)
-  tblClass = table(dt$Survived, dt$Class)
-#  print(tblClass)
-#  names(tblClass) <- tblAge
-#  names(tblSex) <- tblAge
-#  return (dt[, cbind(tblAge, tblSex, tblClass)])
-  return (list(age=tblAge, sex=tblSex, class=tblClass))
+  return (dt[,list(tblAge = count(Age), tblSex = count(Sex), tblClass = count(Class)), by=Survived])
 }
 
 ```

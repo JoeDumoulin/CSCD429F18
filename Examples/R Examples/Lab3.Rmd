@@ -1,0 +1,139 @@
+---
+title: "Lab3"
+author: "Joe D"
+date: "10/13/2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Lab 3
+Goal: Learn descriptive statistics using R. For each question, include the R command and the result in your submission.
+Here is a short reference card of R commands: 
+https://cran.r-project.org/doc/contrib/Short-refcard.pdf
+
+1.  1.	Given x=c(-20, -15,-5, 8, 12, 9, 2, 23, 19), find each of the following
+
+```{r}
+x <- c(-20, -15,-5, 8, 12, 9, 2, 23, 19)
+x
+```
+```{r}
+# a)	the mean of x.
+mean(x)
+```
+
+```{r}
+# b)	the median of x.
+median(x)
+```
+
+```{r}
+# c)	the sum of x.
+sum(x)
+```
+
+```{r}
+# d)	the sum of all the positive values in x.
+sum(x[x%%2==0])
+```
+
+```{r}
+# e)	all the values xi in x such that | xi | > 8 and xi < 8.
+x[abs(x) > 8 & x < 8]
+```
+
+2.  Given x=c(1,3,0,-2,4,-1,5,2,10), find the following
+
+```{r}
+x <- c(1,3,0,-2,4,-1,5,2,10)
+# a.
+sum(x)
+```
+
+```{r}
+#b.
+sum(x)**2
+```
+
+```{r}
+# c.
+sum(x**2)
+```
+
+```{r}
+# d.
+sum(x[3:5])
+```
+
+```{r}
+# e.
+sum(x[1:4]^3)
+```
+
+3. Given x=c(12, 6, 15, 3, 12, 6, 21, 15, 18 , 12), find the following
+
+```{r}
+x <- c(12, 6, 15, 3, 12, 6, 21, 15, 18 , 12)
+# a. 
+sum(x-mean(x))
+```
+
+```{r}
+# b. range of x.
+max(x)-min(x)
+```
+
+```{r}
+# c. calculate the variance of x
+# sample variance: How does the data disperse around the mean?
+print(1/(length(x)-1)*sum((x-mean(x))**2))
+# population mean: as if x is all the data of the population
+print((1/length(x))*sum((x-mean(x))**2))
+# var function
+print(var(x))
+```
+
+```{r}
+# d. The standard deviation of x
+# standard error
+print(sqrt(1/(length(x)-1)*sum((x-mean(x))**2)))
+# built-in
+sd(x)
+```
+
+```{r}
+# e.  print the five-number summary
+quantile(x)
+```
+
+4.	Download ‘mismatch_dat.txt’ from Canvas, and do the following:
+```{r}
+# a)	Read the data into R using scan() command.
+a <- scan(file="../../Homework/lab3/mismatch_dat.txt")
+a
+```
+
+```{r}
+# b)	Create a boxplot of the data.
+boxplot(a)
+```
+
+```{r}
+# c)	Create a histogram of the data using the default setting of R.
+hist(a)
+```
+
+```{r}
+# d)	Create a histogram of (approximately) 15 equal-width intervals.
+hist(a, 15)
+```
+
+```{r}
+# e)	Create a scatter plot of the data, set the title to “Scatter Plot of Mismatch Data”, and set the label of y axis to “Mismatch Value”.
+plot(a, main="Scatter plot of Mismatch Data", ylab = "Mismatch Value")
+```
+
+

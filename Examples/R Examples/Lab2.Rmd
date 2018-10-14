@@ -1,0 +1,104 @@
+---
+title: "Lab 2"
+author: "Joe D"
+date: "10/13/2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Lab 2
+
+Goal: learn R via RStudio. R (https://www.r-project.org/) is a language and environment for statistical computing and graphics. R provides a wide variety of statistical (linear and nonlinear modelling, classical statistical tests, time-series analysis, classification, clustering, …) and graphical techniques, and is highly extensible. RStudio (https://www.rstudio.com/) makes R easier to use. It includes a code editor, debugging & visualization tools.
+
+To Do: In this lab assignment, you are given a document (R Nuts and Bolts.pdf) which gives you a brief overview of R. Now you learn R on your own based on this given document and then do the following exercises. For each question, copy the R command and also the corresponding result to your submission.
+
+1. (4 points) Create the following vectors:
+
+```{r}
+# a: [1, 2, …, 19, 20]
+c(1:20)
+```
+```{r}
+# b (1, 2, …, 19, 20, 19, 18, …, 2, 1)
+append(c(1:20),c(19:1))
+```
+
+```{r}
+tmp <- c(2,4,6)
+print(tmp)
+```
+
+```{r}
+# d.	(2, 4, 6, 2, 4, 6, …, 2, 4, 6) where there are 10 occurrences of (2, 4, 6). (Hint: look at the help for the function rep().)
+rep(c(246), 10)
+```
+
+2. (7 points) Matrix operations
+
+```{r}
+# a. Create the following matrix and assign it to the name A.
+#       [ 1   1   3]
+# A =   [ 5   2   6]
+#       [-2  -1  -3]
+
+A <- matrix(c(1, 1, 3, 5, 2, 6, -2, -1, -3), 3,3, byrow = TRUE)
+A
+```
+
+```{r}
+# b.	Compute A¬3. (Hint: https://www.statmethods.net/advstats/matrix.html)
+A*A*A
+```
+
+```{r}
+# c.	Replace the third column of A by the sum of the second and the third columns.
+A[,3] <- A[,1] + A[,2]
+A
+```
+
+```{r}
+# d.	Compute the transpose of A and assign it to the name B.
+B <- t(A)
+B
+```
+
+```{r}
+# e.	Compute matrix addition A + B.
+A+B
+```
+
+```{r}
+# f.	Compute matrix subtraction A – B.
+A-B
+```
+
+```{r}
+# g.	Create a 3x3 identity matrix. An identity matrix is a matrix with 1s on the diagonal and 0s otherwise. It is commonly used in statistical operations.
+I <- matrix(0, 3, 3)
+diag(I) <- 1
+I
+```
+
+3.  (4 points)  Solve the following system of linear equations in five unknowns:
+    $$  x_1 + 2x_2 + 3x_3 + 4x_4 + 5x_5 = 7 \\[1ex]
+        2x_1 + x_2 + 2x_3 + 3x_4 + 4x_5 = -1 \\[1ex]
+        3x_1 + 2x_2 + x_3 + 2x_4 + 3x_5 = -3 \\[1ex]
+        4x_1 + 3x_2 + 2x_3 + x_4 + 2x_5 = 5  \\[1ex]
+        5x_1 + 4x_2 + 3x3 + 2x_4 + x_5 = 17  $$
+        
+    by considering the matrix equation $ Ax = y $
+    
+
+```{r}
+A <- matrix(c(1,2,3,4,5,2,1,2,3,4,3,2,1,2,3,4,3,2,1,2,5,4,3,2,1), 5, 5)
+y <- c(7,-1,-3,5,17)
+x <- A**-1 %*% y
+x
+```
+
+
+
+
