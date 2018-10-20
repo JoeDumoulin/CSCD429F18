@@ -1,0 +1,73 @@
+---
+title: "ChatbotBass"
+author: "Joe D"
+date: "8/22/2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Chatbot Bass model
+
+This document outlines an analysis of the Bass model used to predict the sale volume and lifetime of the chatbot market.
+
+The Bass model tries to use some intuitions about innovation and imitaion in the mrket to predict potential sales in a domain.  The bass model is characterized by the following derivation (See Cowpertwaite & Metcalf):
+
+
+
+```{r}
+# see page 53, Cowpertwait, Metcalf
+bassSales <- function(p,q,m, rangeList) {
+  ngete <- exp(-(p + q) * rangeList)
+  bassPdf <- m * ( (p+q)^2 / p) * ngete / (1 + (q/p) * ngete)^2
+  return (bassPdf)
+}
+yrs = seq(0, 20, 0.1)
+
+# the data below is from page 27, "Total Addressable Market", Credit Suisse Global Financial Strategies, Mauboussin & Callahan
+params <- list(
+  c(0.1, 0.06, 68),
+  c(0.143, 0.520, 100),
+  c(0.044, 0.304, 30.5),
+  c(0.055, 0.378, 29.6),
+  c(0.008, 0.421, 45.1),
+  c(0.004, 0.338, 67.6),
+  c(0.110, 0.548, 14.8),
+  c(0.121, 0.281, 25.8),
+  c(0.027, 0.435, 100.0),
+  c(0.025, 0.406, 69.6),
+  c(0.108, 0.231, 96.9),
+  c(0.059, 0.146, 100.0),
+  c(.025, 0.603, 76.3)
+)
+
+titles = list(
+  "Cable Television: 1981-1994",
+  "Calculators: 1973-1979",
+  "Camcorder: 1986-1996",
+  "CD Player: 1986-1996",
+  "Cellular telephone: 1986-1996",
+  "Cordless telephone: 1984-1996",
+  "Electric toothbrush: 1991-1996",
+  "Home PC (millions of units): 1982-1988",
+  "Radio: 1922-1934",
+  "Telephone answering device: 1984-1996",
+  "Television, black and white: 1949-1979",
+  "Television, color: 1965-1979",
+  "VCR: 1981-1994"
+)
+
+# the graphs are for 20 years regardless of the date range of the data.
+result <- lapply(params, (function (p) return(bassSales(p[1], p[2], p[3], yrs))))
+for (i in 1:length(params)){
+  plot(yrs, result[[i]], xlab="years from start", ylab="projected sales", type='l', main=titles[i])
+}
+  
+#plot(yrs, result[[1]], xlab="years from start", ylab="projected sales", type='l', main=titles[1])
+#plot(yrs, result[[2]], xlab="years from start", ylab="projected sales", type='l', main=titles[2])
+
+```
+
+

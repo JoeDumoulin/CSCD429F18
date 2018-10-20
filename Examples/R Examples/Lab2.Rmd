@@ -33,7 +33,7 @@ print(tmp)
 
 ```{r}
 # d.	(2, 4, 6, 2, 4, 6, …, 2, 4, 6) where there are 10 occurrences of (2, 4, 6). (Hint: look at the help for the function rep().)
-rep(c(246), 10)
+rep(c(2,4,6), 10)
 ```
 
 2. (7 points) Matrix operations
@@ -46,11 +46,14 @@ rep(c(246), 10)
 
 A <- matrix(c(1, 1, 3, 5, 2, 6, -2, -1, -3), 3,3, byrow = TRUE)
 A
+AA <- c(1, 1, 3, 5, 2, 6, -2, -1, -3)
+dim(AA) <- c(3,3)
+print(AA)
 ```
 
 ```{r}
 # b.	Compute A¬3. (Hint: https://www.statmethods.net/advstats/matrix.html)
-A*A*A
+A%*%A%*%A
 ```
 
 ```{r}
@@ -97,6 +100,9 @@ A <- matrix(c(1,2,3,4,5,2,1,2,3,4,3,2,1,2,3,4,3,2,1,2,5,4,3,2,1), 5, 5)
 y <- c(7,-1,-3,5,17)
 x <- A**-1 %*% y
 x
+
+# use solve
+solve(A,y)
 ```
 
 

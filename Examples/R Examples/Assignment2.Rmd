@@ -1,0 +1,200 @@
+---
+title: "Assignment2"
+author: "Joe D"
+date: "10/13/2018"
+output: 
+  pdf_document: 
+    latex_engine: xelatex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Assignment 2
+
+Prediction of gene/protein localization
+•	Data Set Description: This dataset was used in the 2001 kdd cup data mining competition. (http://www.cs.wisc.edu/~dpage/kddcup2001/). There were in fact two tasks in the competition with this dataset, the prediction of the "Function" attribute, and prediction of the "Localization" attribute. Here we focus on the prediction of "Localization" (this is somewhat easier as genes can have many functions, but only one localization, at least in this dataset). The dataset provides a variety of details about the several genes of one particular type of organism. The main dataset (Genes_relation.data and Genes_related.test) contains row data of the following form: 
+
+Gene ID, Essential, Class, Complex, Phenotype, Motif, Chromosome Number, Function, Localization. 
+
+The description of data attributes was given in file Genes_relation.names. The first attribute is a discrete variable corresponding to the gene (there are 1243 gene values). Also the remaining 8 attributes consist of discrete variables, most of them related to the proteins coded by the gene, e.g. the "Function" attribute describes some crucial functions the respective protein is involved in, and the "Localization" is simply the part of the cell where the protein is localized. In addition to the data of the above form, there are also data files (Interactions_relations.data and Interactions_relation.test) which contain information about interactions between pairs of genes. 
+  •	Size 
+    o	Gene_relation files: 6275 examples (4346 training, 1929 test), 8 categorical attributes. 
+    o	Interaction_relation files: 1806 records, 2 attributes (one categorical; one numerical) 
+  •	References: 
+    o	Talk overview slides about this problem and also the winner presentation in the KDD 2001 competition can be found on-line. 
+    o	See also Answers to Questions of General Interest from Question Period 1 and Answers to Questions of General Interest from Question Period 2 
+  •	Task: Perform exploratory data analysis to get a good feel for the data and prepare the data for data mining. The task in this dataset is to make predictions on the attribute "Localization". Detailed knowledge of the biology should not be necessary for this application. One word of caution: your classifier for localization should not use “function”, since *both* fields will be withheld from the test genes when they are provided. 
+  •	Challenge: This dataset is a great challenge. One issue is that there is a high proportion of missing variables in the Genes_relation data. The other issue is how to use the interaction data effectively.
+  •	Keys: The keys are provided in the file keys.txt. Use this file to evaluate the accuracy of your solution.
+  •	Deliverables: 
+    o	(30 points) All workable program files: in this assignment, you are required to design and implement a classification algorithm to predict gene localization. You may choose any classification algorithm we covered in class and implement it in either R or python. 
+    o	(2 points) A result file in the format of <gene ID>, <localization> in each row.
+    o	(8 points) A report that includes 
+      -	how to run your program; 
+      -	the methods you used to handle missing data and interaction data;
+      -	the method you used to build the classifier; 
+      -	the accuracy of your solution.
+  o	Include all the files into a single .zip file and submit your file via Canvas.
+
+### Part 1.  Get the Data.  notice that the file codes unknown data as a "?".  we change this to <NA> when reading the data below
+```{r}
+data <- read.csv(file = "../../Homework/hw2/gene_files/Genes_relation.data", na="?")
+is.data.frame(data)
+```
+Hooray! got data.  First let's remove data we don't want.  According to the above description, "Function" is not needed.  
+
+```{r}
+# remove the column "Function"
+data <- data[, !names(data) == "Function"]
+# display our columns:
+print(names(data))
+```
+
+Now let's try to get a perspective on the number of <NA> cells.  we will want to get rid of these either by dropping rows or columns or by filling them in with likely values.
+
+```{r}
+# how many NAs in each column?
+print(colSums(is.na(data)))
+# percent of NAs in each column wrt the length of the dataframe
+print("percent of NAs in each column wrt the length of the dataframe")
+print(colSums(is.na(data))/dim(data)[1])
+```
+
+We can see that columns Class and Motif have more than half of their values as NAs.  Complex column has over 40%.  We probably want to remove these columns but lets see if we can get better info on which values are present for these attributes:
+```{r}
+# look at "Class" column.  How many values?  How many of each value?
+table(data$Class)
+```
+
+Note that no value is especially common here. We could replace missing values using a uniform sample draw from these values so as not to change the overall distribution of these classes.  Because so many of the values are missing, we should create a baseline of predictions by simply removing these columns.
+
+First let's look at the values for the other two colunms with high number of missing values.
+
+```{r}
+print(table(data$Complex))
+print(table(data$Motif))
+```
+
+We will delete the rows and see if the classifiers can work without them. If we wish to improve the classifier, we will work out some methods for guessing what the unknown values should be.
+
+```{r}
+data <- data[, !names(data) %in% c("Class", "Motif", "Complex")]
+```
+
+Now let's look again at the <NA> distribution
+
+```{r}
+print(colSums(is.na(data))/dim(data)[1])
+```
+
+Now we are going to delete the remaining rows with <NA> values.
+
+```{r}
+data <- na.exclude(data)
+dim(data)
+```
+
+We have over three thousand rows left.  Do we have any <NA> values left?
+
+```{r}
+print(colSums(is.na(data)))
+```
+
+Next, we'll remove the geneID as it provides only an index value, and thus no value as an attribute.
+
+```{r}
+data <- data[, !names(data) == "GeneID"]
+head(data)
+```
+
+Next, we will separate the data into train, test and predictors vs target
+```{r}
+# Make a function to return train, test split frm data
+train_test_split <- function(df, pct_split, seed){
+  smp_size <- floor(pct_split * nrow(df))
+
+  ## set the seed to make your partition reproducible
+  set.seed(seed)
+  train_ind <- sample(seq_len(nrow(df)), size = smp_size)
+  train <- df[train_ind, ]
+  test <- df[-train_ind, ]
+  return(list("train"=train, "test"=test))
+}
+
+attribute_target_split <- function(df, target_column){
+  target <- df[, names(df) == target_column]
+  attributes <- df[, !names(df) == target_column]
+  return(list("attributes"=attributes, "target"=target))
+}
+
+learn <- train_test_split(data, 0.75, 0)
+print(dim(learn$train))
+print(dim(learn$test))
+```
+
+Now let's train a decision tree on the Localization data.
+```{r}
+library(rpart)
+# let's create a classification tree first
+tree_model <- rpart("Localization ~ .", data = learn$train, method="class", control=rpart.control(minsplit=10, cp=0.001))
+
+# show the tree
+library(rpart.plot)
+prp(tree_model, extra=101, box.col="orange", split.box.col="grey", roundint = FALSE)
+#plot(tree_model)
+```
+
+Let's use the test data to evaluate this model and see how well it performs
+```{r}
+tree_predict <- predict(tree_model, newdata=learn$test, type="class", na.action = na.pass)
+library(caret)
+tree_confusion <- confusionMatrix(tree_predict, learn$test$Localization)
+tree_confusion$table
+
+# and print model accuracy
+tree_confusion$overall
+```
+
+53% accuracy. Nothing to write home about. Let's try a naive bayes classifier
+
+```{r}
+library(e1071)
+# here is the naive bayes model training.  It's super fast and we add laplace smoothing to make sure we can predict 
+# in the presence of 0 probabilities.
+nb_model <- naiveBayes(Localization ~ ., data=learn$train, laplace=3, na.action = na.pass)
+# Now lets predict results against the test data
+nb_predict <- predict(nb_model, newdata=learn$test)
+
+#confusion matrix and accuracy:
+nb_confusion <- confusionMatrix(nb_predict, learn$test$Localization)
+nb_confusion$table
+
+# and print model accuracy
+nb_confusion$overall
+```
+
+Around 40%. worse than the decision tree.  Next let's try some ensemble methods. 
+
+```{r}
+library(randomForest)
+rf_model <- randomForest(Localization ~ ., data=learn$train, ntree=100)
+
+rf_predict <- predict(rf_model, newdata=learn$test, type="class" )
+library(caret)
+rf_confusion <- confusionMatrix(rf_predict, learn$test$Localization)
+rf_confusion$table
+
+# and print model accuracy
+rf_confusion$overall
+```
+
+
+
+
+
+
+
+
+

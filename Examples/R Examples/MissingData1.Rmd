@@ -1,0 +1,182 @@
+---
+title: "Experiments for filling in missing factor data"
+author: "Joe D"
+date: "10/16/2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Filling in missing factor data in the gene data assignment
+```{r}
+data <- read.csv(file = "../../Homework/hw2/gene_files/Genes_relation.data", na="?")
+is.data.frame(data)
+```
+
+
+```{r}
+# remove the column "Function"
+data <- data[, !names(data) == "Function"]
+# display our columns:
+print(names(data))
+```
+
+```{r}
+# how many NAs in each column?
+print(colSums(is.na(data)))
+# percent of NAs in each column wrt the length of the dataframe
+print("percent of NAs in each column wrt the length of the dataframe")
+print(colSums(is.na(data))/dim(data)[1])
+```
+
+Let's separate the Class column, split out the unknown values, then populate them randomly from a categorical distribution.
+
+```{r}
+scaled <- as.vector(table(data$Class))/sum(as.vector(table(data$Class)))
+a <- sample( levels(data$Class), length(data$Class)-sum(as.vector(table(data$Class))), replace=TRUE, prob=scaled )
+data$Class[is.na(data$Class)] <- a
+print(length(data$Class))
+print(colSums(is.na(data))/dim(data)[1])
+```
+
+No more NAs.  The assumption here is that values of the "Class" attribute are independent of other classes.  Let's apply this to all other columns with NAs and see if it improves our classifications.
+
+```{r}
+# pass a factor column from a datafram to fill NAs from a Categorical distribution 
+#   based on all the existing factor rows
+fillNAFromCategoricalDistribution <- function(col){
+  # count frequency of each factor in the row
+  counts <- as.vector(table(col))
+  # estimate the categorical distribution
+  scaled <- counts/sum(counts)
+  # the total number of rows including NAs
+  nrows <- length(col)
+  # number of rows with NA
+  nNA <- nrows - sum(counts)
+  # get some samples from the categorical distribution
+  samps <- sample(levels(col), nNA, replace=TRUE, prob=scaled)
+  # replace NAs with the samples
+  col[is.na(col)] <- samps
+  return (col)
+}
+
+data$Essential <- fillNAFromCategoricalDistribution(data$Essential)
+data$Complex <- fillNAFromCategoricalDistribution(data$Complex)
+data$Phenotype <- fillNAFromCategoricalDistribution(data$Phenotype)
+data$Motif <- fillNAFromCategoricalDistribution(data$Motif)
+# data$Chromosome <- fillNAFromCategoricalDistribution(data$Chromosome)
+print(colSums(is.na(data))/dim(data)[1])
+```
+
+What about Chromosome?
+
+```{r}
+class(data$Chromosome)
+```
+
+we could estimate this with samples from a normal distribution or a mixture.  we will come back to this later.  Since there are relativiely few rows with NA data, we will remove the NA rows instead.
+
+
+Remove the gene ID
+
+```{r}
+data <- data[, !names(data) %in% c("GeneID", "Chromosome")]
+head(data)
+```
+
+Next we need the train/test data split.
+
+```{r}
+# Make a function to return train, test split frm data
+train_test_split <- function(df, pct_split, seed){
+  smp_size <- floor(pct_split * nrow(df))
+
+  ## set the seed to make your partition reproducible
+  set.seed(seed)
+  train_ind <- sample(seq_len(nrow(df)), size = smp_size)
+  train <- df[train_ind, ]
+  test <- df[-train_ind, ]
+  return(list("train"=train, "test"=test))
+}
+
+learn <- train_test_split(data, 0.80, 0)
+print(dim(learn$train))
+print(dim(learn$test))
+```
+
+OK, let's try a classifier.  Let's go with Random Forest.
+
+```{r}
+library(randomForest)
+rf_model <- randomForest(Localization ~ ., data=learn$train, ntree=100)
+```
+
+Ouch.  One or more of our factors has too many values for random forest.  Let's explore that.
+
+```{r}
+str(learn$train)
+```
+
+The Motif field has 235 factors. Let's initially just remove it for random forest and try again.
+
+```{r}
+data <- data[, !names(data) %in% c("Motif")]
+
+learn <- train_test_split(data, 0.80, 0)
+
+# BE CAREFUL.  This next line will likely run for at least a few minutes
+rf_model <- randomForest(Localization ~ ., data=learn$train, ntree=100)
+
+rf_predict <- predict(rf_model, newdata=learn$test, type="class" )
+library(caret)
+rf_confusion <- confusionMatrix(rf_predict, learn$test$Localization)
+rf_confusion$table
+
+# and print model accuracy
+rf_confusion$overall
+```
+
+60% accuracy.
+
+We wil not run a Decision tree on this data since the tree requires a combinatorial number of split atempts at each trial location.  This means that time complexity is at least exponential and should not be attempted here.
+
+now we will use this data to try a naive bayes classifier as well.
+
+```{r}
+library(e1071)
+nb_model <- randomForest(Localization ~ ., data=learn$train, ntree=100)
+
+nb_predict <- predict(nb_model, newdata=learn$test, type="class" )
+library(caret)
+nb_confusion <- confusionMatrix(nb_predict, learn$test$Localization)
+nb_confusion$table
+
+# and print model accuracy
+nb_confusion$overall
+```
+
+59% accuracy.
+
+Finally, we will try multinomial logistic regression. 
+
+```{r}
+library(nnet)
+
+lr_model <- multinom(Localization ~ ., data=learn$train, MaxNWts=2000)
+
+lr_predict <- predict(lr_model, newdata=learn$test, type="class" )
+library(caret)
+lr_confusion <- confusionMatrix(lr_predict, learn$test$Localization)
+lr_confusion$table
+
+# and print model accuracy
+lr_confusion$overall
+```
+
+58% accuracy...
+
+
+
+

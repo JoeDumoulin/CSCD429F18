@@ -1,0 +1,233 @@
+---
+title: "Titanic with multiple classifiers"
+author: "Joe D"
+date: "10/14/2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Titanic with multiple classifiers
+In this notebook, we will take a look at some different classifiers with respect to the titanic survival data.  This simple dataset can give us data to create a pretty simple set of experiments to compare the quality of different types of classifiers.
+
+The summary titanic data is in the e1017 package
+
+```{r}
+library(e1071)
+
+data(Titanic)
+Tdf <- as.data.frame(Titanic)
+#Tdf <- na.exclude(Tdf)
+```
+
+The Titanic data is frequency data, so to build a classifier, we need to expand it to individual rows for training and testing.  This is from https://www.r-bloggers.com/understanding-naive-bayes-classifier-using-r/
+
+```{r}
+#Creating data from table
+repeating_sequence=rep.int(seq_len(nrow(Tdf)), Tdf$Freq) #This will repeat each combination equal to the frequency of each combination
+#Create the dataset by row repetition created
+Titanic_dataset=Tdf[repeating_sequence,]
+#We no longer need the frequency, drop the feature
+Titanic_dataset$Freq=NULL
+```
+
+Next we separate data into training and testing:
+
+```{r}
+# Make a function to return train, test split frm data
+train_test_split <- function(df, pct_split, seed){
+  smp_size <- floor(pct_split * nrow(df))
+
+  ## set the seed to make your partition reproducible
+  set.seed(seed)
+  train_ind <- sample(seq_len(nrow(df)), size = smp_size)
+  train <- df[train_ind, ]
+  test <- df[-train_ind, ]
+  return(list("train"=train, "test"=test))
+}
+
+# We will use 4/5 of the data for training and the rest for testing.
+learn <- train_test_split(Titanic_dataset, 0.80, 0)
+print(dim(learn$train))
+print(dim(learn$test))
+head(learn$train)
+```
+
+Now we are ready to train some classifiers and test them.
+
+## Decision Tree.
+To create a decision tree model, we will use the package rpart.
+
+```{r}
+library(rpart)
+library(rpart.plot)
+
+# let's create a classification tree first
+tree_model <- rpart("Survived ~ Age+Sex+Class", data = learn$train, method="class", control=rpart.control(minsplit=3, cp=0.001))
+
+# show the tree
+library(rpart.plot)
+prp(tree_model, extra=101, box.col="orange", split.box.col="grey", roundint = FALSE)
+
+```
+
+### Test the Model
+
+```{r}
+tree_predict <- predict(tree_model, newdata=learn$test, type="class" )
+library(caret)
+tree_confusion <- confusionMatrix(tree_predict, learn$test$Survived)
+tree_confusion$table
+
+# and print model accuracy
+tree_confusion$overall
+```
+
+82% accuracy!  very respectable results on the test set.  The confusion matrix tells a slightly different story.  There are a high number of false negatives (the predictor thinks 76 people perished who actually survived).
+
+Let's look at the ROC AUC for this classifier.  For this we will use the pROC library.
+
+```{r}
+library(pROC)
+tree_roc <- plot.roc(as.numeric(learn$test$Survived), as.numeric(tree_predict),
+  main = "Confidence intervals", 
+                   percent=TRUE,
+                   ci = TRUE,                  # compute AUC (of AUC by default)
+                   print.auc = TRUE)           # print the AUC (will contain the CI)
+tree_ci <- ci.se(tree_roc,                         # CI of sensitivity
+               specificities = seq(0, 100, 5)) # over a select set of specificities
+plot(tree_ci, type = "shape", col = "#1c61b6AA")     # plot as a blue shape
+plot(ci(tree_roc, of = "thresholds", thresholds = "best")) # add one threshold
+```
+
+72% AUC illustrates the issue with false positives we noticed in the confusion matrix.
+
+## Naive Bayes
+Next we will use the naive bayes classifier from the e1071 library.
+
+```{r}
+nb_model <- naiveBayes(Survived ~ ., data=learn$train, laplace=3)
+summary(nb_model)
+```
+
+```{r}
+nb_predict <- predict(nb_model, newdata=learn$test, type="class" )
+library(caret)
+nb_confusion <- confusionMatrix(nb_predict, learn$test$Survived)
+nb_confusion$table
+
+# and print model accuracy
+nb_confusion$overall
+```
+
+Accuracy of 79%.  Only slightly less bad than the decision tree.  Notice that false negatives are down, but false positives are higher for naive bayes than for the decision tree with respect to this data set.  Now let's look at ROC:
+
+```{r}
+library(pROC)
+nb_roc <- plot.roc(as.numeric(learn$test$Survived), as.numeric(nb_predict),
+  main = "Confidence intervals", 
+                   percent=TRUE,
+                   ci = TRUE,                  # compute AUC (of AUC by default)
+                   print.auc = TRUE)           # print the AUC (will contain the CI)
+nb_ci <- ci.se(nb_roc,                         # CI of sensitivity
+               specificities = seq(0, 100, 5)) # over a select set of specificities
+plot(nb_ci, type = "shape", col = "#1c61b6AA")     # plot as a blue shape
+plot(ci(nb_roc, of = "thresholds", thresholds = "best")) # add one threshold
+```
+
+
+ROC is very slightly better for the naive bayes, but give the wide confidence intevals, it's probably not significant.
+
+# Ensemble Methods
+
+First we will look at Bagging.  Bagging is just a weighted avereage of models built from creating sample sets with replacement from the existing sample of rows.  we will use the bagging function from the ipred library.
+
+```{r}
+library(ipred)
+bag_model <- bagging(Survived ~ ., data=learn$train, nbagg=5, control=rpart.control(minsplit=10, cp=0.001))
+# Whoah.  Much data!
+# summary(bag_model)
+```
+
+OK, we built a model from 5 decision trees.  How does it perform?
+
+```{r}
+bag_predict <- predict(bag_model, newdata=learn$test, type="class" )
+library(caret)
+bag_confusion <- confusionMatrix(bag_predict, learn$test$Survived)
+bag_confusion$table
+
+# and print model accuracy
+bag_confusion$overall
+```
+
+This looks alot like a single tree.  Lets try more samples!
+
+```{r}
+library(ipred)
+bag_model2 <- bagging(Survived ~ ., data=learn$train, nbagg=100, control=rpart.control(minsplit=5, cp=0.001))
+
+bag_predict2 <- predict(bag_model2, newdata=learn$test, type="class" )
+library(caret)
+bag_confusion2 <- confusionMatrix(bag_predict2, learn$test$Survived)
+bag_confusion2$table
+
+# and print model accuracy
+bag_confusion2$overall
+```
+
+Not very interesting, mostly due to the very small amount of sample data we are starting with.  More samples?
+
+```{r}
+library(ipred)
+bag_model3 <- bagging(Survived ~ ., data=learn$train, nbagg=1000, control=rpart.control(minsplit=3, cp=0.001))
+
+bag_predict3 <- predict(bag_model3, newdata=learn$test, type="class" )
+library(caret)
+bag_confusion3 <- confusionMatrix(bag_predict3, learn$test$Survived)
+bag_confusion3$table
+
+# and print model accuracy
+bag_confusion3$overall
+```
+
+No difference.  Let's try Random Forest.  RF uses a random selection for the attributes to split on.  this helps diversify the trees and thus get many different trees.  
+
+```{r}
+library(randomForest)
+rf_model <- randomForest(Survived ~ ., data=learn$train, ntree=100)
+
+rf_predict <- predict(rf_model, newdata=learn$test, type="class" )
+library(caret)
+rf_confusion <- confusionMatrix(rf_predict, learn$test$Survived)
+rf_confusion$table
+
+# and print model accuracy
+rf_confusion$overall
+```
+
+79% accuracy.  a little worse than the tree, but false negative count is somewhat better.  Lets look at ROC.
+
+```{r}
+library(pROC)
+rf_roc <- plot.roc(as.numeric(learn$test$Survived), as.numeric(rf_predict),
+  main = "Confidence intervals", 
+                   percent=TRUE,
+                   ci = TRUE,                  # compute AUC (of AUC by default)
+                   print.auc = TRUE)           # print the AUC (will contain the CI)
+rf_ci <- ci.se(rf_roc,                         # CI of sensitivity
+               specificities = seq(0, 100, 5)) # over a select set of specificities
+plot(rf_ci, type = "shape", col = "#1c61b6AA")     # plot as a blue shape
+plot(ci(rf_roc, of = "thresholds", thresholds = "best")) # add one threshold
+```
+
+
+
+
+
+
+
+
+
